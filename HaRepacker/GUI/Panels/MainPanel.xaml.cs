@@ -1266,20 +1266,28 @@ namespace HaRepacker.GUI.Panels
             }
 
             if (node.Tag is WzCanvasProperty property) {
-                if (property.ContainsInlinkProperty() || property.ContainsOutlinkProperty()) // if its an inlink property, remove that before updating base image.
+                bool hasInlink = property.ContainsInlinkProperty();
+                bool hasOutlink = property.ContainsOutlinkProperty();
+                if (hasInlink || hasOutlink) // if its an inlink/outlink property, embed the base image then remove the link.
                 {
-                    // Delete UI nodes before resolving (they will be removed from the property)
-                    if (property.ContainsInlinkProperty()) {
+                    // Resolve the link FIRST. This embeds the linked bitmap data into the canvas
+                    // and removes the '_inlink'/'_outlink' property from the underlying WzCanvasProperty.
+                    //
+                    // This must run before the UI nodes are deleted: deleting the '_outlink'/'_inlink'
+                    // WzNode also removes the underlying WzStringProperty from the canvas, which would
+                    // make ResolveSingleCanvas see no link to resolve and bail out without ever copying
+                    // the bitmap data (resulting in a blank image).
+                    WzLinkResolver.ResolveSingleCanvas(property);
+
+                    // Delete the now-orphaned UI tree nodes for the link properties.
+                    if (hasInlink) {
                         WzNode childInlinkNode = WzNode.GetChildNode(node, WzCanvasProperty.InlinkPropertyName);
                         childInlinkNode?.DeleteWzNode(); // Delete '_inlink' node
                     }
-                    if (property.ContainsOutlinkProperty()) {
+                    if (hasOutlink) {
                         WzNode childOutlinkNode = WzNode.GetChildNode(node, WzCanvasProperty.OutlinkPropertyName);
                         childOutlinkNode?.DeleteWzNode(); // Delete '_outlink' node
                     }
-
-                    // Use centralized link resolution logic
-                    WzLinkResolver.ResolveSingleCanvas(property);
 
                     // Updates
                     node.ChangedNodeProperty();
